@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+{% block title %}Event Feed & Incident Clips — TripView {% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-6 py-6 space-y-6">
+    <!-- Filter Header -->
+    <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-5 space-y-4 shadow-sm">
+        <div class="flex flex-wrap justify-between items-center gap-3">
+            <div>
+                <span class="text-[11px] font-mono font-bold uppercase tracking-widest text-purple-500">Incident Discovery Engine</span>
+                <h1 class="text-xl font-extrabold text-zinc-900 dark:text-white mt-0.5">Search Road Anomalies &amp; AI Vision Detections</h1>
+            </div>
+            <span id="match-count" class="text-xs font-mono font-bold px-3.5 py-1.5 rounded-full bg-sky-500/10 text-sky-500 border border-sky-500/20">Loading...</span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
+            <div class="md:col-span-6">
+                <input type="text" id="event-search" oninput="applyFilters()" placeholder="Search keyword (e.g., Pedestrian, Hazard, Braking, Dense, Trip ID)..."
+                    class="w-full px-4 py-2.5 rounded-xl text-xs font-medium bg-zinc-50 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-700 focus:border-sky-500 focus:outline-none">
+            </div>
+            <div class="md:col-span-3">
+                <select id="category-filter" onchange="applyFilters()" class="w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-zinc-50 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-700 focus:border-sky-500 focus:outline-none">
+                    <option value="ALL">All Event Categories</option>
+                    <option value="Hazard">AI: Road Hazards &amp; Animals</option>
+                    <option value="Pedestrian">AI: Pedestrian Alerts</option>
+                    <option value="Dense">AI: Dense Scene Activity</option>
+                    <option value="Braking">Harsh Braking / Deceleration</option>
+                    <option value="Acceleration">Rapid Acceleration</option>
+                    <option value="Velocity">Peak Velocity / High Speed</option>
+                </select>
+            </div>
+            <div class="md:col-span-3">
+                <select id="sort-order" onchange="applyFilters()" class="w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-zinc-50 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-700 focus:border-sky-500 focus:outline-none">
+                    <option value="severity">Sort: Highest Severity First</option>
+                    <option value="trip_desc">Sort: Latest Trip ID First</option>
+                    <option value="sec_asc">Sort: Video Timestamp (0s &rarr; End)</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Feed & Clip Player with Automatic Live AI Boxes -->
+    <div class="grid grid-cols-12 gap-6">
+        <div id="events-grid" class="col-span-12 lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-h-[580px] overflow-y-auto pr-1 content-start">
+            <div class="col-span-full text-center text-xs text-zinc-500 py-10">Indexing events across all recordings...</div>
+        </div>
+
+        <div class="col-span-12 lg:col-span-5">
+            <div class="sticky top-24 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-5 shadow-sm space-y-4">
+                <div class="flex flex-wrap justify-between items-center gap-2">
+                    <span class="text-xs font-mono font-bold uppercase text-zinc-500">Event Clip + Auto AI Vision</span>
+                    <div class="flex items-center gap-2">
+                        <label class="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-600 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-950 px-2.5 py-1 rounded-lg border border-zinc-200 dark:border-zinc-800 cursor-pointer">
+                            <input type="checkbox" id="toggle-event-boxes" checked class="accent-sky-500">
+                            AI Boxes
+                        </label>
+                        <span id="clip-badge" class="text-[11px] font-mono px-2.5 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800">Select an event</span>
+                    </div>
+                </div>
+
+                <!-- Video + Canvas Bounding Box Overlay -->
+                <div class="relative w-full aspect-video bg-black rounded-2xl overflow-hidden border border-zinc-300 dark:border-zinc-800">
+                    <video id="clip-player" class="w-full h-full object-contain" controls muted playsinline></video>
+                    <canvas id="event-bbox-canvas" class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
+
+                    <!-- Live HUD Badge -->
+                    <div class="absolute top-2.5 left-2.5 bg-black/75 backdrop-blur-md border border-white/10 text-white px-2.5 py-1 rounded-lg text-[10px] font-mono pointer-events-none flex items-center gap-2">
+                        <span id="event-hud-time">T: 0.0s</span>
+                        <span class="text-zinc-500">|</span>
+                        <span id="event-hud-objs" class="text-emerald-400 font-bold">Ready</span>
+                    </div>
+                </div>
+
+                <div class="bg-zinc-50 dark:bg-zinc-950 p-3.5 rounded-2xl border border-zinc-200 dark:border-zinc-800 space-y-1">
+                    <p id="clip-title" class="text-sm font-bold text-zinc-900 dark:text-white">Click any event card on the left</p>
+                    <p id="clip-detail" class="text-xs text-zinc-600 dark:text-zinc-400">Video plays immediately with automatic frame-by-frame AI object tracking.</p>
+                </div>
+
+                <div class="flex justify-between items-center pt-1">
+                    <a id="clip-dl-btn" href="#" class="hidden text-xs font-bold text-emerald-500 hover:underline">⬇ Download Clip (.MP4)</a>
+                    <button id="open-full-map-btn" onclick="openInExplorer()" class="hidden text-xs font-bold bg-sky-500 hover:bg-sky-400 text-zinc-950 px-4 py-2 rounded-xl transition">View on Map &rarr;</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let allEvents = [], selectedEvent = null;
+    const framesCacheByTrip = {};
+    const pendingAutoScans = new Set();
+
+    const clipPlayer = document.getElementById("clip-player");
+    const canvasEl = document.getElementById("event-bbox-canvas");
+    const ctx = canvasEl.getContext("2d");
+
+    const classColors = [
+        "#38bdf8", "#34d399", "#f43f5e", "#fbbf24", "#a78bfa",
+        "#fb7185", "#2dd4bf", "#f97316", "#60a5fa", "#e879f9"
+    ];
+    const labelColorMap = {};
+    function getColorForLabel(label) {
+        if (!labelColorMap[label]) {
+            const idx = Object.keys(labelColorMap).length % classColors.length;
+            labelColorMap[label] = classColors[idx];
+        }
+        return labelColorMap[label];
+    }
+
+    const severityRank = { high: 3, medium: 2, info: 1 };
+
+    function loadAllEvents() {
+        fetch("/api/all_events").then(res => res.json()).then(data => {
+            allEvents = data.events || [];
+            applyFilters();
+        });
+    }
+    loadAllEvents();
+
+    function applyFilters() {
+        const q = document.getElementById("event-search").value.trim().toLowerCase();
+        const cat = document.getElementById("category-filter").value.toLowerCase();
+        const sortBy = document.getElementById("sort-order").value;
+
+        let filtered = allEvents.filter(ev => {
+            const matchesQuery = !q || ev.type.toLowerCase().includes(q) || ev.detail.toLowerCase().includes(q) || ev.trip_id.toLowerCase().includes(q);
+            const matchesCat = cat === "all" || ev.type.toLowerCase().includes(cat) || ev.detail.toLowerCase().includes(cat);
+            return matchesQuery && matchesCat;
+        });
+
+        filtered.sort((a, b) => {
+            if (sortBy === "severity") return (severityRank[b.severity] || 0) - (severityRank[a.severity] || 0);
+            if (sortBy === "trip_desc") return b.trip_id.localeCompare(a.trip_id);
+            return a.sec - b.sec;
+        });
+
+        document.getElementById("match-count").innerText = `${filtered.length} Matching Events`;
+        const grid = document.getElementById("events-grid");
+
+        if (filtered.length === 0) {
+            grid.innerHTML = `<div class="col-span-full text-center text-xs text-zinc-500 py-10 bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200 dark:border-zinc-800">No events match your filter.</div>`;
+            return;
+        }
+
+        grid.innerHTML = filtered.map(ev => {
+            const sevClass = ev.severity === "high" ? "bg-rose-500/15 text-rose-500" : (ev.severity === "medium" ? "bg-amber-500/15 text-amber-500" : "bg-sky-500/15 text-sky-500");
+            return `
+                <div onclick='playEventClip(${JSON.stringify(ev)})'
+                    class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-sky-500 rounded-2xl p-4 cursor-pointer transition shadow-sm flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-start gap-2">
+                            <span class="text-xs font-bold text-zinc-900 dark:text-white">${ev.type}</span>
+                            <span class="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded ${sevClass}">${ev.severity}</span>
+                        </div>
+                        <p class="text-[11px] text-zinc-600 dark:text-zinc-400 mt-2 leading-relaxed">${ev.detail}</p>
+                    </div>
+                    <div class="flex justify-between items-center mt-3.5 pt-2.5 border-t border-zinc-100 dark:border-zinc-800 text-[11px] font-mono">
+                        <span class="text-zinc-500">${ev.trip_id}</span>
+                        <span class="font-bold text-sky-500">▶ @ ${ev.sec}s</span>
+                    </div>
+                </div>
+            `;
+        }).join("");
+    }
+
+    function playEventClip(ev) {
+        selectedEvent = ev;
+        document.getElementById("clip-title").innerText = `${ev.type} (at ${ev.sec}s)`;
+        document.getElementById("clip-detail").innerText = ev.detail;
+        document.getElementById("clip-badge").innerText = `Trip: ${ev.trip_id}`;
+        const dlBtn = document.getElementById("clip-dl-btn");
+        document.getElementById("open-full-map-btn").classList.remove("hidden");
+
+        if (ev.video_file) {
+            const targetSrc = `/videos/${ev.video_file}`;
+            if (!clipPlayer.src.endsWith(targetSrc)) {
+                clipPlayer.src = targetSrc;
+            }
+            clipPlayer.currentTime = ev.sec;
+            clipPlayer.play().catch(() => {});
+            dlBtn.href = `/videos/${ev.video_file}?download=1`;
+            dlBtn.classList.remove("hidden");
+            ensureAiFramesLoaded(ev.trip_id);
+        } else {
+            clipPlayer.removeAttribute("src");
+            clipPlayer.load();
+            dlBtn.classList.add("hidden");
+            clearCanvas();
+        }
+    }
+
+    function ensureAiFramesLoaded(tripId) {
+        if (framesCacheByTrip[tripId]) {
+            drawEventOverlay();
+            return;
+        }
+
+        document.getElementById("event-hud-objs").innerText = "Syncing AI Boxes...";
+        fetch(`/api/telemetry/${tripId}`).then(res => res.json()).then(data => {
+            if (data.ai_data && data.ai_data.frames && data.ai_data.frames.length > 0) {
+                framesCacheByTrip[tripId] = data.ai_data.frames;
+                drawEventOverlay();
+            } else if (!pendingAutoScans.has(tripId)) {
+                // Automatically generate AI boxes silently in background while video plays
+                pendingAutoScans.add(tripId);
+                document.getElementById("event-hud-objs").innerText = "Auto-Detecting...";
+                fetch(`/api/ai_scan/${tripId}`, { method: "POST" })
+                    .then(r => r.json())
+                    .then(scanRes => {
+                        pendingAutoScans.delete(tripId);
+                        if (scanRes.status === "success" && scanRes.ai_data) {
+                            framesCacheByTrip[tripId] = scanRes.ai_data.frames || [];
+                            drawEventOverlay();
+                            loadAllEvents();
+                        }
+                    })
+                    .catch(() => pendingAutoScans.delete(tripId));
+            }
+        });
+    }
+
+    function clearCanvas() {
+        ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+    }
+
+    function drawEventOverlay() {
+        const rect = clipPlayer.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return;
+        canvasEl.width = rect.width;
+        canvasEl.height = rect.height;
+        clearCanvas();
+
+        const curTime = clipPlayer.currentTime || 0;
+        document.getElementById("event-hud-time").innerText = `T: ${curTime.toFixed(1)}s`;
+
+        if (!selectedEvent || !framesCacheByTrip[selectedEvent.trip_id]) {
+            return;
+        }
+
+        if (!document.getElementById("toggle-event-boxes").checked) {
+            document.getElementById("event-hud-objs").innerText = "Boxes Hidden";
+            return;
+        }
+
+        const frames = framesCacheByTrip[selectedEvent.trip_id];
+        if (frames.length === 0) return;
+
+        let closest = frames[0];
+        let minDiff = Math.abs(frames[0].t - curTime);
+        for (let i = 1; i < frames.length; i++) {
+            const diff = Math.abs(frames[i].t - curTime);
+            if (diff < minDiff) { minDiff = diff; closest = frames[i]; }
+            else if (frames[i].t > curTime) break;
+        }
+
+        const objs = closest.objects || [];
+        document.getElementById("event-hud-objs").innerText = `${objs.length} Object(s)`;
+
+        const vw = clipPlayer.videoWidth || 1280;
+        const vh = clipPlayer.videoHeight || 720;
+        const scale = Math.min(canvasEl.width / vw, canvasEl.height / vh);
+        const drawW = vw * scale;
+        const drawH = vh * scale;
+        const offsetX = (canvasEl.width - drawW) / 2;
+        const offsetY = (canvasEl.height - drawH) / 2;
+
+        objs.forEach(obj => {
+            const [x1, y1, x2, y2] = obj.bbox;
+            const bx = offsetX + x1 * drawW;
+            const by = offsetY + y1 * drawH;
+            const bw = (x2 - x1) * drawW;
+            const bh = (y2 - y1) * drawH;
+            const color = getColorForLabel(obj.label);
+
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.strokeRect(bx, by, bw, bh);
+
+            ctx.fillStyle = color + "24";
+            ctx.fillRect(bx, by, bw, bh);
+
+            const tag = `${obj.label} #${obj.id} (${Math.round(obj.conf * 100)}%)`;
+            ctx.font = "bold 10px 'JetBrains Mono', monospace";
+            const textW = ctx.measureText(tag).width + 8;
+            const tagY = by > 16 ? by - 16 : by;
+            ctx.fillStyle = color;
+            ctx.fillRect(bx, tagY, textW, 16);
+
+            ctx.fillStyle = "#09090b";
+            ctx.fillText(tag, bx + 4, tagY + 12);
+        });
+    }
+
+    function renderLoop() {
+        if (!clipPlayer.paused && !clipPlayer.ended) {
+            drawEventOverlay();
+        }
+        requestAnimationFrame(renderLoop);
+    }
+    requestAnimationFrame(renderLoop);
+
+    clipPlayer.addEventListener("seeked", drawEventOverlay);
+    clipPlayer.addEventListener("loadeddata", drawEventOverlay);
+    window.addEventListener("resize", drawEventOverlay);
+    document.getElementById("toggle-event-boxes").addEventListener("change", drawEventOverlay);
+
+    function openInExplorer() {
+        if (!selectedEvent) return;
+        localStorage.setItem("tripview_active_trip", selectedEvent.trip_id);
+        sessionStorage.setItem("tripview_jump_sec", selectedEvent.sec);
+        window.location.href = "{{ url_for('explorer_page') }}";
+    }
+</script>
+{% endblock %}

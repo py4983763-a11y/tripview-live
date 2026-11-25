@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+{% block title %}TripView — Real-Time Dashcam Telemetry & Vision AI{% endblock %}
+
+{% block content %}
+<!-- Hero Section: Editorial Typography + Interactive Live HUD -->
+<section class="max-w-7xl mx-auto px-6 pt-10 pb-14">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
+        <!-- Left Copy -->
+        <div class="lg:col-span-6 space-y-6 hero-stagger">
+            <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-900/5 dark:bg-white/5 border border-zinc-200 dark:border-zinc-800 text-xs font-mono">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                <span class="text-zinc-700 dark:text-zinc-300">FULL-SCENE OBJECT TRACKING &amp; GPS FUSION</span>
+            </div>
+
+            <h1 class="text-4xl sm:text-5xl lg:text-[54px] font-extrabold tracking-tight leading-[1.08] text-zinc-900 dark:text-white">
+                See every detail on the road, <span class="text-transparent bg-clip-text bg-gradient-to-r from-sky-400 via-cyan-300 to-emerald-400">frame by frame.</span>
+            </h1>
+
+            <p class="text-zinc-600 dark:text-zinc-400 text-sm sm:text-base leading-relaxed max-w-xl">
+                TripView fuses high-frequency GPS telemetry with multi-class computer vision—automatically detecting every vehicle, pedestrian, traffic signal, and road anomaly in real time.
+            </p>
+
+            <div class="flex flex-wrap items-center gap-3 pt-1">
+                {% if session.get('user') %}
+                    <a href="{{ url_for('analytics_page') }}" class="px-6 py-3.5 rounded-2xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-950 font-bold text-sm hover:scale-[1.02] transition shadow-xl">
+                        Open Vision AI Lab &rarr;
+                    </a>
+                    <a href="{{ url_for('explorer_page') }}" class="px-6 py-3.5 rounded-2xl bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white font-semibold text-sm border border-zinc-200 dark:border-zinc-800 hover:border-sky-500 transition">
+                        Explore GPS Map
+                    </a>
+                {% else %}
+                    <a href="{{ url_for('login_page') }}" class="px-6 py-3.5 rounded-2xl bg-sky-500 hover:bg-sky-400 text-zinc-950 font-extrabold text-sm hover:scale-[1.02] transition shadow-lg shadow-sky-500/20">
+                        Try Interactive Workspace &rarr;
+                    </a>
+                    <a href="#interactive-sandbox" class="px-6 py-3.5 rounded-2xl bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white font-semibold text-sm border border-zinc-200 dark:border-zinc-800 hover:border-sky-500 transition">
+                        Test Live AI Sandbox
+                    </a>
+                {% endif %}
+            </div>
+
+            <!-- Live Platform Metrics -->
+            <div class="grid grid-cols-3 gap-4 pt-6 border-t border-zinc-200 dark:border-zinc-800/80">
+                <div>
+                    <p class="text-2xl font-extrabold font-mono text-zinc-900 dark:text-white">{{ total_trips }}</p>
+                    <p class="text-xs text-zinc-500 mt-0.5">Indexed GPS Routes</p>
+                </div>
+                <div>
+                    <p class="text-2xl font-extrabold font-mono text-sky-500">{{ total_videos }}</p>
+                    <p class="text-xs text-zinc-500 mt-0.5">Synced Dashcam Feeds</p>
+                </div>
+                <div>
+                    <p class="text-2xl font-extrabold font-mono text-emerald-500">All-Class</p>
+                    <p class="text-xs text-zinc-500 mt-0.5">Frame-Level AI Vision</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Interactive Sandbox HUD -->
+        <div id="interactive-sandbox" class="lg:col-span-6 hero-stagger">
+            <div class="bg-zinc-950 text-white rounded-3xl border border-zinc-800 p-4 sm:p-5 shadow-2xl space-y-4 relative overflow-hidden">
+                <div class="flex flex-wrap justify-between items-center gap-2 border-b border-zinc-800 pb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+                        <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                        <span class="text-[11px] font-mono text-zinc-400 ml-2">LIVE VISION SIMULATOR • CLICK OBJECTS TO INSPECT</span>
+                    </div>
+                    <span id="sim-fps" class="text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">AI ACTIVE</span>
+                </div>
+
+                <!-- Interactive Road Scene Viewport -->
+                <div id="sim-viewport" class="relative w-full h-64 sm:h-72 rounded-2xl bg-gradient-to-b from-slate-900 via-zinc-900 to-zinc-950 border border-zinc-800 overflow-hidden select-none cursor-crosshair">
+                    <div class="absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-zinc-950 to-zinc-900/40 border-t border-zinc-800/80"></div>
+                    <div class="absolute left-1/2 bottom-0 w-1 h-36 -translate-x-1/2 bg-dashed border-l-2 border-dashed border-amber-400/50"></div>
+
+                    <!-- Interactive Bounding Box 1: Car -->
+                    <button type="button" onclick="inspectSimObject('4W Vehicle (ID #14)', '42.4 km/h', 'Safe following distance: 18.2m', '0.94')"
+                        class="sim-box group absolute left-[14%] top-[36%] w-32 h-20 border-2 border-sky-400 bg-sky-400/10 hover:bg-sky-400/25 rounded-md transition-all text-left">
+                        <span class="absolute -top-5 left-0 bg-sky-500 text-zinc-950 font-mono text-[10px] font-bold px-1.5 py-0.5 rounded-t">
+                            Car #14 • 94%
+                        </span>
+                    </button>
+
+                    <!-- Interactive Bounding Box 2: 2-Wheeler -->
+                    <button type="button" onclick="inspectSimObject('2-Wheeler (ID #29)', '38.1 km/h', 'Lane split proximity alert monitored', '0.89')"
+                        class="sim-box group absolute left-[54%] top-[42%] w-20 h-24 border-2 border-emerald-400 bg-emerald-400/10 hover:bg-emerald-400/25 rounded-md transition-all text-left">
+                        <span class="absolute -top-5 left-0 bg-emerald-500 text-zinc-950 font-mono text-[10px] font-bold px-1.5 py-0.5 rounded-t">
+                            2W #29 • 89%
+                        </span>
+                    </button>
+
+                    <!-- Interactive Bounding Box 3: Pedestrian -->
+                    <button type="button" onclick="inspectSimObject('Pedestrian (ID #07)', '4.2 km/h', 'High-priority crosswalk boundary alert', '0.96')"
+                        class="sim-box group absolute right-[10%] top-[34%] w-16 h-28 border-2 border-rose-500 bg-rose-500/15 hover:bg-rose-500/30 rounded-md transition-all text-left">
+                        <span class="absolute -top-5 right-0 bg-rose-500 text-white font-mono text-[10px] font-bold px-1.5 py-0.5 rounded-t whitespace-nowrap">
+                            Person #07 • 96%
+                        </span>
+                    </button>
+
+                    <!-- Live HUD Telemetry Overlay -->
+                    <div class="absolute bottom-3 left-3 right-3 flex justify-between items-center bg-black/75 backdrop-blur-md border border-zinc-800 px-3.5 py-2 rounded-xl text-xs font-mono">
+                        <div>
+                            <span class="text-zinc-400 block text-[10px]">SELECTED TARGET</span>
+                            <span id="sim-target-name" class="text-sky-400 font-bold">Click any bounding box above</span>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-zinc-400 block text-[10px]">TELEMETRY STATUS</span>
+                            <span id="sim-target-detail" class="text-emerald-400">3 Active Tracks • 44.0 km/h</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Interactive Scenario Switcher -->
+                <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+                    <span class="text-[11px] text-zinc-400">Interactive Preview: Click any detected box to inspect live telemetry metadata</span>
+                    <a href="{{ url_for('login_page') }}" class="text-xs font-bold text-sky-400 hover:text-sky-300">Open Full Video Lab &rarr;</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Scroll-Triggered Feature Bento Grid -->
+<section class="max-w-7xl mx-auto px-6 py-12 space-y-8">
+    <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 reveal-section">
+        <div>
+            <span class="text-xs font-mono uppercase tracking-widest text-sky-500 font-bold">Platform Architecture</span>
+            <h2 class="text-2xl sm:text-3xl font-extrabold text-zinc-900 dark:text-white mt-1">Built for complete situational awareness</h2>
+        </div>
+        <p class="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400 max-w-md">
+            Every frame is indexed, tracked with persistent IDs, and synchronized with geospatial coordinates.
+        </p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div class="reveal-card bg-white dark:bg-zinc-900/90 border border-zinc-200 dark:border-zinc-800 p-6 rounded-3xl hover:border-sky-500/60 transition group">
+            <div class="w-10 h-10 rounded-2xl bg-sky-500/10 text-sky-500 flex items-center justify-center font-mono font-bold text-sm mb-4 group-hover:scale-110 transition">01</div>
+            <h3 class="text-base font-bold text-zinc-900 dark:text-white">Full-Scene Multi-Class AI</h3>
+            <p class="text-xs text-zinc-600 dark:text-zinc-400 mt-2 leading-relaxed">
+                Detects every object in the dashcam field of view—cars, 2-wheelers, heavy trucks, pedestrians, animals, traffic lights, and custom road hazards—with frame-by-frame bounding boxes.
+            </p>
+        </div>
+
+        <div class="reveal-card bg-white dark:bg-zinc-900/90 border border-zinc-200 dark:border-zinc-800 p-6 rounded-3xl hover:border-emerald-500/60 transition group">
+            <div class="w-10 h-10 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center font-mono font-bold text-sm mb-4 group-hover:scale-110 transition">02</div>
+            <h3 class="text-base font-bold text-zinc-900 dark:text-white">Sub-Second GPS Synchronization</h3>
+            <p class="text-xs text-zinc-600 dark:text-zinc-400 mt-2 leading-relaxed">
+                Pairs NMEA telemetry streams with dashcam video playback, plotting live speed envelopes, Haversine distance, and harsh braking anomalies on interactive satellite maps.
+            </p>
+        </div>
+
+        <div class="reveal-card bg-white dark:bg-zinc-900/90 border border-zinc-200 dark:border-zinc-800 p-6 rounded-3xl hover:border-purple-500/60 transition group">
+            <div class="w-10 h-10 rounded-2xl bg-purple-500/10 text-purple-500 flex items-center justify-center font-mono font-bold text-sm mb-4 group-hover:scale-110 transition">03</div>
+            <h3 class="text-base font-bold text-zinc-900 dark:text-white">Audit-Ready Telemetry Exports</h3>
+            <p class="text-xs text-zinc-600 dark:text-zinc-400 mt-2 leading-relaxed">
+                Filter high-severity incidents across trips, jump directly to exact video timestamps, and download structured multi-section CSV reports for fleet &amp; safety audits.
+            </p>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    gsap.registerPlugin(ScrollTrigger);
+
+    gsap.from(".hero-stagger", {
+        y: 24,
+        opacity: 0,
+        duration: 0.8,
+        stagger: 0.15,
+        ease: "power3.out"
+    });
+
+    gsap.to(".sim-box", {
+        y: -4,
+        duration: 1.8,
+        repeat: -1,
+        yoyo: true,
+        stagger: 0.3,
+        ease: "sine.inOut"
+    });
+
+    gsap.from(".reveal-card", {
+        scrollTrigger: {
+            trigger: ".reveal-section",
+            start: "top 85%"
+        },
+        y: 28,
+        opacity: 0,
+        duration: 0.7,
+        stagger: 0.12,
+        ease: "power2.out"
+    });
+
+    function inspectSimObject(name, speed, note, conf) {
+        document.getElementById("sim-target-name").innerText = `${name} • Conf ${conf}`;
+        document.getElementById("sim-target-detail").innerText = `${speed} | ${note}`;
+    }
+</script>
+{% endblock %}

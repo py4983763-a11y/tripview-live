@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+{% block title %}Map & Telemetry Explorer — TripView{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    #map { height: 430px; width: 100%; border-radius: 1rem; z-index: 1; }
+    .car-dot { width: 18px; height: 18px; background: #ef4444; border: 3px solid #ffffff; border-radius: 50%; box-shadow: 0 0 16px rgba(239, 68, 68, 1); }
+    .endpoint-badge { font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 6px; color: white; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,0.6); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-6 py-6 space-y-6">
+    <!-- Top Header -->
+    <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-5 flex flex-wrap justify-between items-center gap-4 shadow-sm">
+        <div>
+            <span class="text-[11px] font-mono font-bold uppercase tracking-widest text-sky-500">Geospatial &amp; Video Sync</span>
+            <h1 class="text-xl font-extrabold text-zinc-900 dark:text-white mt-0.5">Interactive Route Map &amp; Dashcam Feed</h1>
+        </div>
+        <div class="flex flex-wrap items-center gap-3">
+            <select id="trip-select" onchange="if(this.value) selectTripById(this.value)"
+                class="bg-zinc-50 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-700 text-xs font-semibold rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-sky-500">
+                <option value="">-- Loading Trips... --</option>
+            </select>
+            <a id="download-video-btn" href="#"
+                class="hidden items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition shadow">
+                ⬇ Download MP4
+            </a>
+        </div>
+    </div>
+
+    <!-- Map + Synced Video Grid -->
+    <div class="grid grid-cols-12 gap-6">
+        <div class="col-span-12 lg:col-span-7 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-5 rounded-3xl shadow-sm">
+            <div class="flex flex-wrap justify-between items-center gap-2 mb-3">
+                <span class="text-xs font-mono font-bold uppercase text-zinc-500">GPS Route Trajectory (Click any path)</span>
+                <div class="flex items-center gap-3">
+                    <span class="text-[11px] font-mono text-zinc-500">🟢 &gt;40 | 🔵 20-40 | 🟠 &lt;20 km/h</span>
+                    <button onclick="toggleMapLayer()" id="layer-btn"
+                        class="text-[11px] bg-zinc-100 dark:bg-zinc-950 hover:border-sky-500 text-sky-600 dark:text-sky-400 px-3 py-1 rounded-xl border border-zinc-300 dark:border-zinc-800 font-semibold transition">
+                        Switch to Street Map
+                    </button>
+                </div>
+            </div>
+            <div id="map"></div>
+        </div>
+
+        <div class="col-span-12 lg:col-span-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-5 rounded-3xl shadow-sm flex flex-col justify-between space-y-4">
+            <div>
+                <div class="flex justify-between items-center mb-2.5">
+                    <span class="text-xs font-mono font-bold uppercase text-zinc-500">Synced Dashcam Player</span>
+                    <span id="video-status" class="text-[11px] px-2.5 py-0.5 rounded-lg bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 font-mono">Loading...</span>
+                </div>
+                <video id="player" class="w-full aspect-video bg-black rounded-2xl border border-zinc-300 dark:border-zinc-800" controls muted playsinline></video>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2.5 text-center bg-zinc-50 dark:bg-zinc-950 p-3.5 rounded-2xl border border-zinc-200 dark:border-zinc-800">
+                <div>
+                    <p class="text-[10px] font-mono uppercase text-zinc-500">Live Speed</p>
+                    <p class="text-base font-extrabold font-mono text-sky-500 mt-0.5"><span id="val-speed">--</span> <span class="text-[10px]">km/h</span></p>
+                </div>
+                <div>
+                    <p class="text-[10px] font-mono uppercase text-zinc-500">Timeline</p>
+                    <p class="text-base font-extrabold font-mono mt-0.5"><span id="val-sec">0s</span> <span id="val-total" class="text-[10px] text-zinc-400">/ 0s</span></p>
+                </div>
+                <div>
+                    <p class="text-[10px] font-mono uppercase text-zinc-500">GPS Fix</p>
+                    <p id="val-coords" class="text-[11px] font-mono font-bold mt-1">--.----, --.----</p>
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center text-xs pt-1 border-t border-zinc-100 dark:border-zinc-800">
+                <span class="text-zinc-500">Inspect frame-by-frame bounding boxes?</span>
+                <a href="{{ url_for('analytics_page') }}" class="font-bold text-purple-500 hover:text-purple-400 transition">Open Vision AI Lab &rarr;</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Speed Profile Chart -->
+    <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-5 rounded-3xl shadow-sm">
+        <div class="flex justify-between items-center mb-3">
+            <h2 class="text-xs font-mono font-bold uppercase text-zinc-500">Velocity Curve (km/h) — Click any point to scrub video &amp; map</h2>
+            <span id="val-time" class="text-xs font-mono text-zinc-500">UTC: --:--:--</span>
+        </div>
+        <div class="h-56"><canvas id="speedChart"></canvas></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const map = L.map("map").setView([18.25, 73.40], 12);
+    const satelliteLayer = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { attribution: "Tiles &copy; Esri" });
+    const streetLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OpenStreetMap" });
+
+    let isSatellite = document.documentElement.classList.contains("dark");
+    (isSatellite ? satelliteLayer : streetLayer).addTo(map);
+    document.getElementById("layer-btn").innerText = isSatellite ? "Switch to Street Map" : "Switch to Satellite";
+
+    let tripPoints = [], carMarker = null, startMarker = null, endMarker = null, selectedLine = null, routesLayer = null, routeLayersById = {}, activeSec = 0;
+    const player = document.getElementById("player");
+
+    function toggleMapLayer() {
+        const btn = document.getElementById("layer-btn");
+        if (isSatellite) { map.removeLayer(satelliteLayer); streetLayer.addTo(map); btn.innerText = "Switch to Satellite"; }
+        else { map.removeLayer(streetLayer); satelliteLayer.addTo(map); btn.innerText = "Switch to Street Map"; }
+        isSatellite = !isSatellite;
+        if (routesLayer) routesLayer.bringToFront();
+    }
+
+    const speedChart = new Chart(document.getElementById("speedChart"), {
+        type: "line",
+        data: {
+            labels: [],
+            datasets: [{
+                label: "Vehicle Speed (km/h)", data: [], borderColor: "#0ea5e9", backgroundColor: "rgba(14, 165, 233, 0.14)",
+                borderWidth: 2.5, pointRadius: (ctx) => ctx.dataIndex === activeSec ? 6 : 2,
+                pointBackgroundColor: (ctx) => ctx.dataIndex === activeSec ? "#ef4444" : "#0ea5e9", fill: true, tension: 0.25
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+            scales: {
+                x: { ticks: { color: "#71717a" }, grid: { color: "rgba(161, 161, 170, 0.12)" } },
+                y: { ticks: { color: "#0ea5e9" }, grid: { color: "rgba(161, 161, 170, 0.12)" } }
+            },
+            onClick: (e, items) => {
+                if (items.length > 0 && tripPoints.length > 0) {
+                    const sec = items[0].index;
+                    const pt = tripPoints.find(item => item.sec === sec);
+                    if (pt) updateCards(pt);
+                    if (player.src) { player.currentTime = sec; player.play().catch(() => {}); }
+                }
+            }
+        }
+    });
+
+    function loadAllRoutes() {
+        fetch("/api/routes").then(res => res.json()).then(geojson => {
+            if (routesLayer) map.removeLayer(routesLayer);
+            routeLayersById = {};
+            const selectEl = document.getElementById("trip-select");
+            selectEl.innerHTML = '<option value="">-- Select Trip (' + geojson.features.length + ') --</option>';
+
+            routesLayer = L.geoJSON(geojson, {
+                style: (f) => ({ color: f.properties.avg_speed > 40 ? "#10b981" : (f.properties.avg_speed > 20 ? "#3b82f6" : "#f59e0b"), weight: 5, opacity: 0.9 }),
+                onEachFeature: (f, layer) => {
+                    const id = f.properties.trip_id;
+                    routeLayersById[id] = layer;
+                    const opt = document.createElement("option");
+                    opt.value = id; opt.textContent = `${id} (Avg: ${f.properties.avg_speed} km/h)`;
+                    selectEl.appendChild(opt);
+                    layer.bindTooltip(`Trip: ${id}`);
+                    layer.on("click", () => selectTripById(id));
+                }
+            }).addTo(map);
+
+            if (geojson.features.length > 0) {
+                map.fitBounds(routesLayer.getBounds());
+                const savedTrip = localStorage.getItem("tripview_active_trip");
+                const initialTrip = (savedTrip && routeLayersById[savedTrip]) ? savedTrip : geojson.features[0].properties.trip_id;
+                const savedSec = sessionStorage.getItem("tripview_jump_sec");
+                sessionStorage.removeItem("tripview_jump_sec");
+                selectTripById(initialTrip, savedSec ? parseInt(savedSec) : null);
+            }
+        });
+    }
+
+    function selectTripById(id, jumpSec = null) {
+        localStorage.setItem("tripview_active_trip", id);
+        const layer = routeLayersById[id];
+        if (layer) {
+            if (selectedLine && routesLayer) routesLayer.resetStyle(selectedLine);
+            selectedLine = layer;
+            layer.setStyle({ color: "#facc15", weight: 7, opacity: 1 });
+            map.fitBounds(layer.getBounds(), { padding: [40, 40] });
+        }
+        document.getElementById("trip-select").value = id;
+        selectTrip(id, jumpSec);
+    }
+
+    function selectTrip(tripId, jumpSec = null) {
+        activeSec = 0;
+        fetch(`/api/telemetry/${tripId}`).then(res => res.json()).then(data => {
+            tripPoints = data.points;
+            const statusEl = document.getElementById("video-status");
+            const dlBtn = document.getElementById("download-video-btn");
+
+            if (data.video_file) {
+                player.src = `/videos/${data.video_file}`;
+                if (jumpSec !== null) player.currentTime = jumpSec;
+                player.play().catch(() => {});
+                statusEl.innerText = data.video_file;
+                dlBtn.href = `/videos/${data.video_file}?download=1`;
+                dlBtn.classList.remove("hidden"); dlBtn.classList.add("inline-flex");
+            } else {
+                player.removeAttribute("src"); player.load();
+                statusEl.innerText = "Telemetry Only";
+                dlBtn.classList.add("hidden"); dlBtn.classList.remove("inline-flex");
+            }
+
+            speedChart.data.labels = tripPoints.map(p => `${p.sec}s`);
+            speedChart.data.datasets[0].data = tripPoints.map(p => p.speed);
+            speedChart.update();
+
+            if (carMarker) map.removeLayer(carMarker);
+            if (startMarker) map.removeLayer(startMarker);
+            if (endMarker) map.removeLayer(endMarker);
+
+            if (tripPoints.length > 0) {
+                const first = tripPoints[0], last = tripPoints[tripPoints.length - 1];
+                startMarker = L.marker([first.lat, first.lng], { icon: L.divIcon({ html: '<span class="endpoint-badge bg-emerald-600">START</span>', className: "" }) }).addTo(map);
+                endMarker = L.marker([last.lat, last.lng], { icon: L.divIcon({ html: '<span class="endpoint-badge bg-zinc-700">END</span>', className: "" }) }).addTo(map);
+                carMarker = L.marker([first.lat, first.lng], { icon: L.divIcon({ className: "car-dot", iconSize: [18, 18] }) }).addTo(map);
+                document.getElementById("val-total").innerText = `/ ${tripPoints.length}s`;
+                const initPt = jumpSec !== null ? (tripPoints.find(p => p.sec === jumpSec) || first) : first;
+                updateCards(initPt);
+            }
+        });
+    }
+
+    function updateCards(pt) {
+        activeSec = pt.sec;
+        document.getElementById("val-speed").innerText = pt.speed;
+        document.getElementById("val-time").innerText = `UTC: ${pt.time}`;
+        document.getElementById("val-coords").innerText = `${pt.lat}, ${pt.lng}`;
+        document.getElementById("val-sec").innerText = `${pt.sec}s`;
+        if (carMarker) carMarker.setLatLng([pt.lat, pt.lng]);
+        speedChart.update("none");
+    }
+
+    player.addEventListener("timeupdate", () => {
+        const currentSec = Math.floor(player.currentTime);
+        const pt = tripPoints.find(item => item.sec === currentSec);
+        if (pt && pt.sec !== activeSec) updateCards(pt);
+    });
+
+    loadAllRoutes();
+</script>
+{% endblock %}

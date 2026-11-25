@@ -1,0 +1,558 @@
+{% extends "base.html" %}
+{% block title %}Vision AI Lab & Analytics — TripView{% endblock %}
+
+{% block head_extra %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-6 py-6 space-y-6">
+    <!-- Top Header & Controls -->
+    <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-5 flex flex-wrap justify-between items-center gap-4 shadow-sm">
+        <div>
+            <span class="text-[11px] font-mono font-bold uppercase tracking-widest text-emerald-500">Analyst Workbench • 11-Class Vision, Optical Flow &amp; ARAI Audit</span>
+            <h1 class="text-xl font-extrabold text-zinc-900 dark:text-white mt-0.5">AI Live Canvas HUD, Telemetry KPIs &amp; CSV Report</h1>
+        </div>
+        <div class="flex flex-wrap items-center gap-3">
+            <select id="trip-select" onchange="if(this.value) loadTripAnalytics(this.value)"
+                class="bg-zinc-50 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-700 text-xs font-semibold rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-sky-500">
+                <option value="">-- Loading Trips... --</option>
+            </select>
+            <button id="export-btn" onclick="exportReport()" disabled
+                class="bg-emerald-600 disabled:bg-zinc-200 dark:disabled:bg-zinc-800 disabled:text-zinc-500 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition shadow">
+                Download Analyst Report (.CSV)
+            </button>
+        </div>
+    </div>
+
+    <!-- 6-Card Telemetry KPI Strip -->
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
+        <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-2xl shadow-sm">
+            <p class="text-[10px] font-mono uppercase text-zinc-500 font-bold">Safety Score</p>
+            <p class="text-xl font-extrabold font-mono text-emerald-500 mt-1"><span id="kpi-score">--</span> <span class="text-xs text-zinc-400">/100</span></p>
+            <p class="text-[11px] text-zinc-500 mt-0.5">Smoothness: <strong id="kpi-smooth">--%</strong></p>
+        </div>
+        <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-2xl shadow-sm">
+            <p class="text-[10px] font-mono uppercase text-zinc-500 font-bold">ARAI Compliance</p>
+            <p class="text-xl font-extrabold font-mono text-indigo-500 mt-1"><span id="kpi-arai">--</span> <span class="text-xs text-zinc-400">/100</span></p>
+            <p class="text-[11px] text-zinc-500 mt-0.5">MIDC (Urban + Highway)</p>
+        </div>
+        <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-2xl shadow-sm">
+            <p class="text-[10px] font-mono uppercase text-zinc-500 font-bold">Distance &amp; Speed</p>
+            <p class="text-xl font-extrabold font-mono text-sky-500 mt-1"><span id="kpi-dist">--</span> <span class="text-xs text-zinc-400">km</span></p>
+            <p class="text-[11px] text-zinc-500 mt-0.5">Avg <strong id="kpi-avg">--</strong> / Max <strong id="kpi-max">--</strong></p>
+        </div>
+        <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-2xl shadow-sm">
+            <p class="text-[10px] font-mono uppercase text-zinc-500 font-bold">Idle vs Moving</p>
+            <p class="text-xl font-extrabold font-mono text-amber-500 mt-1"><span id="kpi-idle">0s</span> <span class="text-xs text-zinc-400">/ <span id="kpi-moving">0s</span></span></p>
+            <p class="text-[11px] text-zinc-500 mt-0.5">Stationary vs Active</p>
+        </div>
+        <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-2xl shadow-sm">
+            <p class="text-[10px] font-mono uppercase text-zinc-500 font-bold">Fuel &amp; CO2 Est.</p>
+            <p class="text-lg font-extrabold font-mono text-rose-500 mt-1"><span id="kpi-fuel">--</span> <span class="text-xs text-zinc-400">/ <span id="kpi-co2">--</span></span></p>
+            <p class="text-[11px] text-zinc-500 mt-0.5">Petrol Equivalent</p>
+        </div>
+        <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-2xl shadow-sm">
+            <p class="text-[10px] font-mono uppercase text-zinc-500 font-bold">Congestion Index</p>
+            <p class="text-xl font-extrabold font-mono text-purple-500 mt-1"><span id="kpi-congestion">--</span> <span class="text-xs text-zinc-400">/100</span></p>
+            <p id="kpi-congestion-label" class="text-[11px] text-zinc-500 mt-0.5">Free Flow</p>
+        </div>
+    </div>
+
+    <!-- Main Split: Live Video HUD (Left) + Upgraded Visual AI Detection Breakdown (Right) -->
+    <div class="grid grid-cols-12 gap-6 items-stretch">
+        <!-- Left 6 Columns: Live HTML5 Canvas AI HUD Overlay -->
+        <div class="col-span-12 lg:col-span-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-5 shadow-sm flex flex-col justify-between space-y-4">
+            <div class="flex flex-wrap justify-between items-center gap-2">
+                <span class="text-xs font-mono font-bold uppercase text-zinc-500">Live HTML5 Canvas AI HUD Overlay</span>
+                <div class="flex items-center gap-2">
+                    <label class="flex items-center gap-1.5 text-[11px] font-bold text-purple-600 dark:text-purple-300 bg-purple-500/10 border border-purple-500/20 px-3 py-1 rounded-full cursor-pointer">
+                        <input type="checkbox" id="toggle-boxes" checked class="accent-purple-500">
+                        HUD Overlay: ON
+                    </label>
+                    <span id="hud-sec-pill" class="text-[11px] font-mono px-2.5 py-1 rounded-full bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800">0s</span>
+                </div>
+            </div>
+
+            <div class="relative w-full aspect-video bg-black rounded-2xl overflow-hidden border border-zinc-300 dark:border-zinc-800">
+                <video id="analytics-video" class="w-full h-full object-contain" controls muted playsinline></video>
+                <canvas id="bbox-canvas" class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
+            </div>
+
+            <p class="text-[11px] text-zinc-500 leading-relaxed">
+                Real-time ByteTrack object IDs, bounding boxes, and hazard zones rendered directly on HTML5 Canvas. Click any detected category on the right to isolate its boxes.
+            </p>
+        </div>
+
+        <!-- Right 6 Columns: Rich Visual AI Detection & Scene Composition Panel -->
+        <div class="col-span-12 lg:col-span-6 bg-white dark:bg-zinc-900 border border-purple-300/60 dark:border-purple-900/50 rounded-3xl p-5 shadow-sm flex flex-col justify-between space-y-4">
+            <!-- Header + Scan Buttons -->
+            <div class="flex flex-wrap justify-between items-start gap-3">
+                <div>
+                    <h2 class="text-xs font-mono font-extrabold uppercase tracking-wider text-purple-600 dark:text-purple-400">
+                        YOLOv8 / YOLO26 + ByteTrack Scene Intelligence
+                    </h2>
+                    <p id="ai-status" class="text-[11px] text-zinc-500 mt-0.5">Frame-by-frame multi-class detection &amp; hazard breakdown</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="ai-scan-btn" onclick="runAiScan(false)"
+                        class="bg-purple-600 hover:bg-purple-500 disabled:bg-zinc-300 dark:disabled:bg-zinc-800 disabled:text-zinc-500 text-white text-xs font-bold px-3.5 py-1.5 rounded-xl transition shadow">
+                        Run AI Scan
+                    </button>
+                    <button id="ai-rescan-btn" onclick="runAiScan(true)"
+                        class="bg-zinc-100 dark:bg-zinc-950 hover:border-purple-500 border border-zinc-300 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-bold px-3 py-1.5 rounded-xl transition">
+                        Re-Scan
+                    </button>
+                </div>
+            </div>
+
+            <!-- Top Visual Summary Strip: Total Entities + Live In-Frame + Scene Composition Bar -->
+            <div class="bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 space-y-3">
+                <div class="flex flex-wrap justify-between items-center gap-2">
+                    <div class="flex items-baseline gap-2.5">
+                        <span id="total-entities-count" class="text-2xl font-extrabold font-mono text-zinc-900 dark:text-white">0</span>
+                        <span class="text-xs font-semibold text-zinc-500">Unique Tracked Entities</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span id="live-frame-badge" class="text-[11px] font-mono font-bold px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                            0 in Current Frame
+                        </span>
+                        <button id="reset-filter-btn" onclick="setClassFilter('ALL')" class="hidden text-[11px] font-bold text-sky-500 hover:underline">
+                            Show All
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Segmented Composition Bar (Vehicles vs Pedestrians/Animals vs Road Hazards) -->
+                <div class="space-y-1.5">
+                    <div class="w-full h-2.5 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden flex">
+                        <div id="bar-vehicles" style="width: 0%" class="bg-sky-500 transition-all duration-500" title="Vehicles"></div>
+                        <div id="bar-vru" style="width: 0%" class="bg-emerald-500 transition-all duration-500" title="Pedestrians & Animals"></div>
+                        <div id="bar-hazards" style="width: 0%" class="bg-rose-500 transition-all duration-500" title="Road Hazards (Potholes / Breakers)"></div>
+                    </div>
+                    <div class="flex flex-wrap justify-between text-[10px] font-mono text-zinc-500">
+                        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-sky-500"></span>Vehicles: <strong id="pct-vehicles" class="text-zinc-800 dark:text-zinc-200">0%</strong></span>
+                        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500"></span>Pedestrians/Animals: <strong id="pct-vru" class="text-zinc-800 dark:text-zinc-200">0%</strong></span>
+                        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-rose-500"></span>Road Hazards: <strong id="pct-hazards" class="text-zinc-800 dark:text-zinc-200">0%</strong></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Interactive Active Detections List (Visual Progress Rows — Click any row to isolate on video!) -->
+            <div id="active-detections-list" class="space-y-2 max-h-48 overflow-y-auto pr-1">
+                <div class="text-center text-xs text-zinc-500 py-6">Run AI Scan to visualize detected object classes</div>
+            </div>
+
+            <!-- Compact Zero-Count Categories Footer (No bulky empty boxes!) -->
+            <div id="zero-classes-strip" class="pt-2 border-t border-zinc-200/80 dark:border-zinc-800/80 flex flex-wrap items-center gap-1.5 text-[10px] font-mono text-zinc-400">
+                <span>Clear (0 detected):</span>
+                <span id="zero-classes-badges" class="flex flex-wrap gap-1.5">--</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Correlation & Speed Regime Charts -->
+    <div class="grid grid-cols-12 gap-6">
+        <div class="col-span-12 lg:col-span-8 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-5 rounded-3xl shadow-sm">
+            <h2 class="text-xs font-mono font-bold uppercase text-zinc-500 mb-3">Multi-Axis Correlation: Speed (km/h), Accel/Brake Delta &amp; Tracked Traffic Density</h2>
+            <div class="h-64"><canvas id="analyticsChart"></canvas></div>
+        </div>
+        <div class="col-span-12 lg:col-span-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-5 rounded-3xl shadow-sm flex flex-col justify-between">
+            <h2 class="text-xs font-mono font-bold uppercase text-zinc-500 mb-2">Speed Regime Distribution</h2>
+            <div class="h-44 flex items-center justify-center"><canvas id="zoneChart"></canvas></div>
+            <div class="grid grid-cols-2 gap-2 mt-2 text-[11px] font-mono bg-zinc-50 dark:bg-zinc-950 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                <div>Idle (&lt;5): <strong id="z-idle">0%</strong></div>
+                <div>City (5-30): <strong id="z-city">0%</strong></div>
+                <div>Cruise (30-55): <strong id="z-cruise">0%</strong></div>
+                <div>Fast (&gt;55): <strong id="z-fast">0%</strong></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audit Table -->
+    <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-5 rounded-3xl shadow-sm">
+        <div class="flex justify-between items-center mb-3">
+            <h2 class="text-xs font-mono font-bold uppercase text-zinc-500">Auto-Scrolling Sync Feed — Telemetry Anomalies &amp; AI Alerts (Click row to jump)</h2>
+            <span id="event-count" class="text-xs font-mono bg-zinc-100 dark:bg-zinc-800 px-3 py-1 rounded-full font-semibold">0 Insights</span>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+                <thead class="text-zinc-500 border-b border-zinc-200 dark:border-zinc-800 uppercase">
+                    <tr>
+                        <th class="py-2.5 px-3">Timestamp</th>
+                        <th class="py-2.5 px-3">Event / Hazard Type</th>
+                        <th class="py-2.5 px-3">Severity</th>
+                        <th class="py-2.5 px-3">Analytical Detail</th>
+                    </tr>
+                </thead>
+                <tbody id="events-table" class="divide-y divide-zinc-100 dark:divide-zinc-800"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentTripId = null, baseEvents = [], aiFrames = [], activeClassFilter = "ALL", currentAllClasses = {};
+    const videoEl = document.getElementById("analytics-video");
+    const canvasEl = document.getElementById("bbox-canvas");
+    const ctx = canvasEl.getContext("2d");
+
+    // Standard 11 Indian Road Categories for baseline reference
+    const STANDARD_11_CLASSES = [
+        "2W_Gear", "2W_NonGear", "3W_Auto", "4W_Car", "Chhota_Tempo",
+        "Truck", "Bus", "Pedestrian", "Animal", "Pothole", "High_Breaker"
+    ];
+
+    const classColors = [
+        "#38bdf8", "#f43f5e", "#34d399", "#fbbf24", "#a78bfa",
+        "#fb7185", "#2dd4bf", "#f97316", "#60a5fa", "#e879f9"
+    ];
+    const labelColorMap = {};
+    function getColorForLabel(label) {
+        if (!labelColorMap[label]) {
+            const idx = Object.keys(labelColorMap).length % classColors.length;
+            labelColorMap[label] = classColors[idx];
+        }
+        return labelColorMap[label];
+    }
+
+    const analyticsChart = new Chart(document.getElementById("analyticsChart"), {
+        type: "line",
+        data: {
+            labels: [],
+            datasets: [
+                { label: "Speed (km/h)", data: [], borderColor: "#0ea5e9", backgroundColor: "rgba(14, 165, 233, 0.12)", borderWidth: 2.5, fill: true, tension: 0.25, yAxisID: "y" },
+                { label: "Tracked Traffic (Objects/Frame)", data: [], borderColor: "#a855f7", borderDash: [4, 4], borderWidth: 2, fill: false, tension: 0.2, yAxisID: "y1" },
+                { label: "Accel/Brake (km/h/s)", data: [], type: "bar", backgroundColor: (c) => (c.raw >= 0 ? "rgba(16, 185, 129, 0.45)" : "rgba(244, 63, 94, 0.55)"), yAxisID: "y1" }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+            scales: {
+                x: { ticks: { color: "#71717a" }, grid: { color: "rgba(161, 161, 170, 0.12)" } },
+                y: { type: "linear", position: "left", ticks: { color: "#0ea5e9" }, grid: { color: "rgba(161, 161, 170, 0.12)" } },
+                y1: { type: "linear", position: "right", ticks: { color: "#a855f7" }, grid: { drawOnChartArea: false } }
+            },
+            onClick: (e, items) => {
+                if (items.length > 0 && videoEl.src) {
+                    videoEl.currentTime = items[0].index;
+                    videoEl.play().catch(() => {});
+                }
+            }
+        }
+    });
+
+    const zoneChart = new Chart(document.getElementById("zoneChart"), {
+        type: "doughnut",
+        data: { labels: ["Idle (<5)", "City (5-30)", "Cruise (30-55)", "Fast (>55)"], datasets: [{ data: [0, 0, 0, 0], backgroundColor: ["#71717a", "#f59e0b", "#3b82f6", "#10b981"], borderWidth: 0 }] },
+        options: { responsive: true, maintainAspectRatio: false, cutout: "66%", plugins: { legend: { position: "right", labels: { color: "#71717a", font: { size: 11 } } } } }
+    });
+
+    fetch("/api/routes").then(res => res.json()).then(geojson => {
+        const selectEl = document.getElementById("trip-select");
+        selectEl.innerHTML = '<option value="">-- Select Trip (' + geojson.features.length + ') --</option>';
+        geojson.features.forEach(f => {
+            const id = f.properties.trip_id;
+            const opt = document.createElement("option");
+            opt.value = id; opt.textContent = `${id} (Avg: ${f.properties.avg_speed} km/h)`;
+            selectEl.appendChild(opt);
+        });
+        if (geojson.features.length > 0) {
+            const saved = localStorage.getItem("tripview_active_trip");
+            const exists = geojson.features.some(f => f.properties.trip_id === saved);
+            loadTripAnalytics(exists ? saved : geojson.features[0].properties.trip_id);
+        }
+    });
+
+    function loadTripAnalytics(tripId) {
+        currentTripId = tripId;
+        aiFrames = [];
+        activeClassFilter = "ALL";
+        localStorage.setItem("tripview_active_trip", tripId);
+        document.getElementById("trip-select").value = tripId;
+        document.getElementById("export-btn").disabled = false;
+
+        fetch(`/api/telemetry/${tripId}`).then(res => res.json()).then(data => {
+            const a = data.analytics || {};
+            baseEvents = a.events || [];
+            document.getElementById("kpi-score").innerText = a.safety_score ?? "--";
+            document.getElementById("kpi-smooth").innerText = (a.smoothness ?? "--") + "%";
+            document.getElementById("kpi-dist").innerText = a.distance_km ?? "--";
+            document.getElementById("kpi-avg").innerText = a.avg_speed ?? "--";
+            document.getElementById("kpi-max").innerText = a.max_speed ?? "--";
+
+            // Derive ARAI, Idle/Moving, Fuel/CO2 & Congestion cleanly from telemetry
+            const totalPts = data.points.length || 60;
+            const idleSec = a.zones ? a.zones[0] : 0;
+            const movingSec = Math.max(0, totalPts - idleSec);
+            document.getElementById("kpi-idle").innerText = `${idleSec}s`;
+            document.getElementById("kpi-moving").innerText = `${movingSec}s`;
+
+            const dist = parseFloat(a.distance_km) || 0;
+            const fuelL = (dist * 0.074).toFixed(3);
+            const co2Kg = (fuelL * 2.31).toFixed(2);
+            document.getElementById("kpi-fuel").innerText = `${fuelL}L`;
+            document.getElementById("kpi-co2").innerText = `${co2Kg}kg`;
+            document.getElementById("kpi-arai").innerText = a.arai_score ?? Math.min(100, Math.max(40, Math.round((a.smoothness || 75) * 0.7)));
+
+            document.getElementById("ai-scan-btn").disabled = !data.video_file;
+            if (data.video_file) {
+                videoEl.src = `/videos/${data.video_file}`;
+            } else {
+                videoEl.removeAttribute("src");
+                videoEl.load();
+            }
+
+            analyticsChart.data.labels = data.points.map(p => `${p.sec}s`);
+            analyticsChart.data.datasets[0].data = data.points.map(p => p.speed);
+            analyticsChart.data.datasets[1].data = [];
+            analyticsChart.data.datasets[2].data = a.accel || [];
+
+            if (data.ai_data) {
+                applyAiData(data.ai_data);
+            } else {
+                document.getElementById("ai-scan-btn").innerText = "Run AI Scan";
+                document.getElementById("ai-status").innerText = "Click 'Run AI Scan' to analyze dashcam frames";
+                document.getElementById("active-detections-list").innerHTML = '<div class="text-center text-xs text-zinc-500 py-6">No AI scan data yet.</div>';
+                analyticsChart.update();
+                renderEvents(baseEvents);
+                clearCanvas();
+            }
+
+            if (a.zones) {
+                zoneChart.data.datasets[0].data = a.zones; zoneChart.update();
+                const tot = a.zones.reduce((x, y) => x + y, 0) || 1;
+                document.getElementById("z-idle").innerText = Math.round((a.zones[0] / tot) * 100) + "%";
+                document.getElementById("z-city").innerText = Math.round((a.zones[1] / tot) * 100) + "%";
+                document.getElementById("z-cruise").innerText = Math.round((a.zones[2] / tot) * 100) + "%";
+                document.getElementById("z-fast").innerText = Math.round((a.zones[3] / tot) * 100) + "%";
+            }
+        });
+    }
+
+    function applyAiData(ai) {
+        aiFrames = ai.frames || [];
+        document.getElementById("ai-scan-btn").innerText = "AI Scanned ✓";
+        document.getElementById("ai-status").innerText = `${ai.model_used || "YOLO"} + ByteTrack • ${aiFrames.length} indexed frames`;
+
+        currentAllClasses = (ai.totals && ai.totals.all_classes) ? ai.totals.all_classes : {};
+        renderVisualDetectionBreakdown(currentAllClasses, {});
+
+        // Update Congestion Index based on average objects per frame
+        const avgObjs = ai.timeline_counts && ai.timeline_counts.length
+            ? (ai.timeline_counts.reduce((s, v) => s + v, 0) / ai.timeline_counts.length)
+            : 0;
+        const congScore = Math.min(100, +(avgObjs * 12.5).toFixed(1));
+        document.getElementById("kpi-congestion").innerText = congScore;
+        document.getElementById("kpi-congestion-label").innerText = congScore < 25 ? "Free Flow" : (congScore < 60 ? "Moderate Traffic" : "Heavy Congestion");
+
+        analyticsChart.data.datasets[1].data = ai.timeline_counts || [];
+        analyticsChart.update();
+        renderEvents([...baseEvents, ...(ai.ai_events || [])].sort((a, b) => a.sec - b.sec));
+        drawOverlayForCurrentTime();
+    }
+
+    function renderVisualDetectionBreakdown(allClasses, liveFrameCounts) {
+        const entries = Object.entries(allClasses).filter(([, count]) => count > 0);
+        const totalEntities = entries.reduce((sum, [, count]) => sum + count, 0);
+        document.getElementById("total-entities-count").innerText = totalEntities;
+
+        // Calculate Composition Split (Vehicles vs Pedestrians/Animals vs Road Hazards)
+        let vehicleCount = 0, vruCount = 0, hazardCount = 0;
+        entries.forEach(([label, count]) => {
+            const l = label.toLowerCase();
+            if (l.includes("pothole") || l.includes("breaker") || l.includes("hazard")) hazardCount += count;
+            else if (l.includes("pedestrian") || l.includes("person") || l.includes("animal") || l.includes("dog") || l.includes("cow")) vruCount += count;
+            else vehicleCount += count;
+        });
+
+        const denom = totalEntities || 1;
+        const pVeh = Math.round((vehicleCount / denom) * 100);
+        const pVru = Math.round((vruCount / denom) * 100);
+        const pHaz = totalEntities > 0 ? Math.max(0, 100 - pVeh - pVru) : 0;
+
+        document.getElementById("bar-vehicles").style.width = `${pVeh}%`;
+        document.getElementById("bar-vru").style.width = `${pVru}%`;
+        document.getElementById("bar-hazards").style.width = `${pHaz}%`;
+        document.getElementById("pct-vehicles").innerText = `${pVeh}%`;
+        document.getElementById("pct-vru").innerText = `${pVru}%`;
+        document.getElementById("pct-hazards").innerText = `${pHaz}%`;
+
+        // Build Interactive Visual Bars for Detected Categories
+        const listEl = document.getElementById("active-detections-list");
+        if (entries.length === 0) {
+            listEl.innerHTML = '<div class="text-center text-xs text-zinc-500 py-4">No objects crossed confidence threshold in this clip.</div>';
+        } else {
+            const maxVal = Math.max(...entries.map(([, c]) => c), 1);
+            listEl.innerHTML = entries.map(([label, count]) => {
+                const color = getColorForLabel(label);
+                const widthPct = Math.max(12, Math.round((count / maxVal) * 100));
+                const inFrameNow = liveFrameCounts[label] || 0;
+                const isSelected = activeClassFilter === label;
+
+                return `
+                    <div onclick="setClassFilter('${isSelected ? "ALL" : label}')"
+                        class="group cursor-pointer p-2.5 rounded-2xl border transition ${isSelected ? "bg-sky-500/10 border-sky-500" : "bg-zinc-50/70 dark:bg-zinc-950/70 border-zinc-200/80 dark:border-zinc-800 hover:border-purple-500/50"}">
+                        <div class="flex justify-between items-center text-xs mb-1.5">
+                            <div class="flex items-center gap-2">
+                                <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:${color}"></span>
+                                <span class="font-bold text-zinc-900 dark:text-white">${label}</span>
+                                ${inFrameNow > 0 ? `<span class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-500 font-bold">● ${inFrameNow} live</span>` : ""}
+                            </div>
+                            <div class="flex items-center gap-2 font-mono">
+                                <span class="text-xs font-extrabold text-zinc-900 dark:text-white">${count}</span>
+                                <span class="text-[10px] text-zinc-400">(${Math.round((count / denom) * 100)}%)</span>
+                            </div>
+                        </div>
+                        <div class="w-full h-1.5 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+                            <div class="h-full rounded-full transition-all duration-500" style="width:${widthPct}%; background:${color}"></div>
+                        </div>
+                    </div>
+                `;
+            }).join("");
+        }
+
+        // Populate Compact Zero-Count Strip
+        const detectedSet = new Set(entries.map(([k]) => k));
+        const zeroClasses = STANDARD_11_CLASSES.filter(c => !detectedSet.has(c));
+        document.getElementById("zero-classes-badges").innerHTML = zeroClasses.length
+            ? zeroClasses.map(c => `<span class="px-2 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-950 border border-zinc-200/70 dark:border-zinc-800/70">${c}: 0</span>`).join("")
+            : "<span>All 11 classes detected!</span>";
+    }
+
+    function setClassFilter(clsName) {
+        activeClassFilter = clsName;
+        const resetBtn = document.getElementById("reset-filter-btn");
+        if (clsName === "ALL") resetBtn.classList.add("hidden");
+        else resetBtn.classList.remove("hidden");
+        drawOverlayForCurrentTime();
+    }
+
+    function runAiScan(force = false) {
+        if (!currentTripId) return;
+        const btn = document.getElementById("ai-scan-btn");
+        btn.disabled = true;
+        btn.innerText = "Scanning...";
+        document.getElementById("ai-status").innerText = "Running frame-by-frame detection...";
+
+        fetch(`/api/ai_scan/${currentTripId}${force ? "?force=1" : ""}`, { method: "POST" })
+            .then(res => res.json())
+            .then(data => {
+                btn.disabled = false;
+                if (data.status === "success") applyAiData(data.ai_data);
+                else { btn.innerText = "Retry Scan"; alert(data.message); }
+            })
+            .catch(() => { btn.disabled = false; btn.innerText = "Retry Scan"; });
+    }
+
+    function clearCanvas() {
+        ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+    }
+
+    function drawOverlayForCurrentTime() {
+        const rect = videoEl.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return;
+        canvasEl.width = rect.width;
+        canvasEl.height = rect.height;
+        clearCanvas();
+
+        const curTime = videoEl.currentTime || 0;
+        document.getElementById("hud-sec-pill").innerText = `${Math.floor(curTime)}s`;
+
+        if (aiFrames.length === 0) return;
+
+        let closest = aiFrames[0];
+        let minDiff = Math.abs(aiFrames[0].t - curTime);
+        for (let i = 1; i < aiFrames.length; i++) {
+            const diff = Math.abs(aiFrames[i].t - curTime);
+            if (diff < minDiff) { minDiff = diff; closest = aiFrames[i]; }
+            else if (aiFrames[i].t > curTime) break;
+        }
+
+        const rawObjs = closest.objects || [];
+        const liveCounts = {};
+        rawObjs.forEach(o => { liveCounts[o.label] = (liveCounts[o.label] || 0) + 1; });
+
+        const objs = rawObjs.filter(o => activeClassFilter === "ALL" || o.label === activeClassFilter);
+        document.getElementById("live-frame-badge").innerText = `${objs.length} in Current Frame`;
+
+        if (Object.keys(currentAllClasses).length > 0) {
+            renderVisualDetectionBreakdown(currentAllClasses, liveCounts);
+        }
+
+        if (!document.getElementById("toggle-boxes").checked) return;
+
+        const vw = videoEl.videoWidth || 1280;
+        const vh = videoEl.videoHeight || 720;
+        const scale = Math.min(canvasEl.width / vw, canvasEl.height / vh);
+        const drawW = vw * scale;
+        const drawH = vh * scale;
+        const offsetX = (canvasEl.width - drawW) / 2;
+        const offsetY = (canvasEl.height - drawH) / 2;
+
+        objs.forEach(obj => {
+            const [x1, y1, x2, y2] = obj.bbox;
+            const bx = offsetX + x1 * drawW;
+            const by = offsetY + y1 * drawH;
+            const bw = (x2 - x1) * drawW;
+            const bh = (y2 - y1) * drawH;
+            const color = getColorForLabel(obj.label);
+
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.strokeRect(bx, by, bw, bh);
+
+            ctx.fillStyle = color + "24";
+            ctx.fillRect(bx, by, bw, bh);
+
+            const tag = `${obj.label} #${obj.id} (${Math.round(obj.conf * 100)}%)`;
+            ctx.font = "bold 11px 'JetBrains Mono', monospace";
+            const textW = ctx.measureText(tag).width + 8;
+            const tagY = by > 18 ? by - 18 : by;
+            ctx.fillStyle = color;
+            ctx.fillRect(bx, tagY, textW, 18);
+
+            ctx.fillStyle = "#09090b";
+            ctx.fillText(tag, bx + 4, tagY + 13);
+        });
+    }
+
+    function renderLoop() {
+        if (!videoEl.paused && !videoEl.ended) {
+            drawOverlayForCurrentTime();
+        }
+        requestAnimationFrame(renderLoop);
+    }
+    requestAnimationFrame(renderLoop);
+
+    videoEl.addEventListener("seeked", drawOverlayForCurrentTime);
+    videoEl.addEventListener("loadeddata", drawOverlayForCurrentTime);
+    window.addEventListener("resize", drawOverlayForCurrentTime);
+    document.getElementById("toggle-boxes").addEventListener("change", drawOverlayForCurrentTime);
+
+    function renderEvents(events) {
+        document.getElementById("event-count").innerText = `${events.length} Insights`;
+        document.getElementById("events-table").innerHTML = events.map(ev => {
+            const sevClass = ev.severity === "high" ? "bg-rose-500/15 text-rose-500" : (ev.severity === "medium" ? "bg-amber-500/15 text-amber-500" : "bg-sky-500/15 text-sky-500");
+            return `<tr onclick="jumpVideoTo(${ev.sec})" class="cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/60 transition">
+                <td class="py-2.5 px-3 font-mono font-bold text-sky-500">${ev.sec}s</td>
+                <td class="py-2.5 px-3 font-semibold">${ev.type}</td>
+                <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase ${sevClass}">${ev.severity}</span></td>
+                <td class="py-2.5 px-3 text-zinc-600 dark:text-zinc-300">${ev.detail}</td>
+            </tr>`;
+        }).join("");
+    }
+
+    function jumpVideoTo(sec) {
+        if (videoEl.src) {
+            videoEl.currentTime = sec;
+            videoEl.play().catch(() => {});
+            window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+    }
+
+    function exportReport() { if (currentTripId) window.location.href = `/api/export/${currentTripId}`; }
+</script>
+{% endblock %}

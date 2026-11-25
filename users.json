@@ -1,0 +1,12 @@
+{
+  "demo@tripview.io": {
+    "name": "Priyanshu (Demo Analyst)",
+    "password": "scrypt:32768:8:1$CXS6GQWSGnnByCRt$96c2d867e74bab9850e07c07edbb591664b83a32cd32fe4f2be9f0b2f13e92b17595bff15b06731e0712e2413747cd2557b35d5c6609b4fd94dc0b224e1425b9",
+    "role": "Lead Analyst"
+  },
+  "p14346741@gmail.com": {
+    "name": "Priyanshu",
+    "password": "scrypt:32768:8:1$rEtjqkLewvWyfMEN$095c5d6e2b9410518ee3da16b56aa40e3f1047b50042f6d41798b6e1b50a89c9f5287ace1ce4c36a26923e0645556740e69cce5fdadb1a341e612ad0590870ee",
+    "role": "Data Analyst"
+  }
+}
